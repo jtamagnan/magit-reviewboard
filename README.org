@@ -1,0 +1,48 @@
+* Magit Reviewboard
+
+This package aims to integrate the [[https://www.reviewboard.org/][ReviewBoard]] review software into
+[[https://github.com/magit/magit][magit]] the Emacs Git interface. It inserts a list of all open
+review-requests for the repository in the Magit status buffer.
+
+** Screenshots
+
+Truncated list as seen in status-buffer
+[[screenshots/status-buffer.png]]
+
+Full list:
+[[screenshots/review-list.png]]
+
+** Installation
+
+#+BEGIN_SRC elisp
+(use-package magit-reviewboard
+  :ensure t
+  :commands (magit-reviewboard-mode magit-reviewboard-list)
+  :custom
+  (magit-reviewboard-base-uri
+     "https://reviews.reviewboard.org/api"
+     "Set Reviewboard api to point to official reviewboard server"))
+#+END_SRC
+
+** Usage
+
+Activate =magit-reviewboard-mode=. Then open a Magit status buffer, or run
+=magit-reviewboard-list= to show a dedicated review list buffer.
+
+** Changelog
+*** 1.0.0
+    Initial release
+
+** Todo
+  - [ ] Handle pagination if there are more than 200 repositories or review-requests in the repository
+  - [ ] Allow customization of review-request display string
+  - [ ] Add option to only show issues related to current branch, right now every review-request for the repository is shown
+  - [ ] Add ability to view diff in magit-diff or magit-revision buffer
+  - [ ] Add ability to spin off reviews into branches
+  - [ ] Apply a special face to reviews that have been reviewed by the current user (create idea of current user)
+
+** Credits
+ - This package is based off of and copies a lot of code from [[https://github.com/alphapapa][Alphapapa]]'s wonderful [[https://github.com/alphapapa/magit-todos][magit-todos]].
+
+** License
+ - GPLv3
