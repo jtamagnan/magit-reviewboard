@@ -30,10 +30,12 @@
 
 ;;; Code:
 
-(require 'cl-lib)
 (require 'browse-url)
+(require 'cl-lib)
 
+(require 'magit)
 (require 'request)
+(require 's)
 
 (cl-defstruct magit-reviewboard-item repository ship-it-count status
               last-updated latest-diff branch description summary
@@ -43,22 +45,21 @@
   "Show reviewboard review items in source code comments in repos' files."
   :group 'magit)
 
-(magit-define-section-jumper magit-jump-to-reviews "Reviews" review)
+(magit-define-section-jumper magit-jump-to-reviewboard "Reviews" reviewboard)
 
 (defvar magit-reviewboard-section-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "jR" #'magit-reviewboard-jump-to-reviews)
+    (define-key map "jR" #'magit-reviewboard-jump-to-reviewboard)
     (define-key map "jl" #'magit-reviewboard-list)
     (define-key map (kbd "RET") #'magit-reviewboard-list)
     map)
-  "Keymap for `magit-review' top-level section.")
+  "Keymap for `magit-review' top level section.")
 
 (defvar magit-reviewboard-item-section-map
   (let ((map (make-sparse-keymap)))
     (define-key map [remap magit-visit-thing] #'magit-reviewboard-jump-to-item)
-    ;; (define-key map [remap magit-diff-show-or-scroll-up] #'magit-reviewboard-peek-at-item) ;; TODO(jules): This should show a diff
     map)
-  "Keymap for `magit-review' individual review-requst item sections.
+  "Keymap for `magit-review' individual review-request item sections.
 See https://magit.vc/manual/magit/Creating-Sections.html for more
 details about how section maps work.")
 
@@ -124,6 +125,7 @@ items."
   :type 'string)
 
 (defun magit-reviewboard-uri (endpoint)
+  "Create the uri to connect to given the api ENDPOINT."
   (concat magit-reviewboard-base-uri endpoint))
 
 ;;;###autoload
@@ -193,8 +195,7 @@ See `magit-section-match'.  Also delete it from root section's children."
 (defun magit-reviewboard-jump-to-item ()
   "Show current item in browser."
   (interactive)
-  (let* ((status-window (selected-window))
-         (item (oref (magit-current-section) value))
+  (let* ((item (oref (magit-current-section) value))
          (browse-url-firefox-new-window-is-tab nil))
     (browse-url (magit-reviewboard-item-absolute-url item))))
 
@@ -206,23 +207,11 @@ See `magit-section-match'.  Also delete it from root section's children."
           (propertize (s-truncate 15 (magit-reviewboard-item-branch item)) 'face 'magit-branch-remote)
           (magit-reviewboard-item-summary item)))
 
-(defun magit-reviewboard-update ()
-  "Update the review-request list manually.
-Only necessary when option `magit-reviewboard-update' is nil."
-  (interactive)
-  (unless magit-reviewboard-mode
-    (user-error "Please activate `magit-reviewboard-mode'"))
-  (let ((inhibit-read-only t))
-    (magit-reviewboard--delete-section [* review])
-    ;; HACK: See other note on `magit-reviewboard-updating'.
-    (setq magit-reviewboard-updating t)
-    (magit-reviewboard--insert-reviews)))
-
-(defun magit-reviewboard-jump-to-review ()
+(defun magit-reviewboard-jump-to-reviewboard ()
   "Jump to Reviews section, and update it if empty."
   (interactive)
-  (let ((already-in-section-p (magit-section-match [* review])))
-    (magit-jump-to-reviews)
+  (let ((already-in-section-p (magit-section-match [* reviewboard])))
+    (magit-jump-to-reviewboard)
     (when (and (or (integerp magit-reviewboard-update)
                    (not magit-reviewboard-update))
                (or already-in-section-p
@@ -284,13 +273,14 @@ MAGIT-STATUS-BUFFER is what it says.  DIRECTORY is the directory in which to run
         proc))))
 
 (defun magit-reviewboard-item-basecommit-id (item)
+  "Return the git hash of the ITEM's parent."
   (let* ((href (magit-reviewboard-item-latest-diff-url item))
          (proc (request
                 href
                 :type "GET"
                 :parser 'json-read
                 :headers '(("Content-Type" . "application/json"))))
-         (done (while (not (request-response-done-p proc)) (sleep-for .01)))
+         (_done (while (not (request-response-done-p proc)) (sleep-for .01)))
          (data (request-response-data proc))
          (diff (assq 'diff data))
          (base-commit-id (assoc-default 'base_commit_id diff)))
@@ -418,12 +408,12 @@ To be called in status buffers' `kill-buffer-hook'."
                 (unless magit-reviewboard-update
                   ;; Manual updates: Insert section to remind user
                   (let ((magit-insert-section--parent magit-root-section))
-                    (magit-insert-section (review)
+                    (magit-insert-section (reviewboard)
                       (magit-insert-heading (concat (propertize "Reviews" 'face 'magit-section-heading)
                                                     " (0)" reminder)))
                     (insert "\n")))
               (let ((section (magit-reviewboard--insert-group
-                               :type 'review
+                               :type 'reviewboard
                                :heading (format "%s (%s)%s"
                                                 (propertize "Reviews" 'face 'magit-section-heading)
                                                 num-items reminder)
@@ -448,7 +438,7 @@ sections."
                     (magit-insert-heading heading)
                     (dolist (item items)
                       (let* ((string (magit-reviewboard--format-plain item)))
-                        (magit-insert-section (review-item item)
+                        (magit-insert-section (reviewboard-item item)
                           (insert string))
                         (insert "\n"))))))
     (magit-reviewboard--set-visibility :num-items (length items) :section section)
@@ -465,17 +455,29 @@ sections."
       (progn
         (if (lookup-key magit-status-mode-map "jR")
             (message "magit-review: Not overriding bind of \"jR\" in `magit-status-mode-map'.")
-          (define-key magit-status-mode-map "jR" #'magit-reviewboard-jump-to-review))
+          (define-key magit-status-mode-map "jR" #'magit-reviewboard-jump-to-reviewboard))
         (magit-add-section-hook 'magit-status-sections-hook
                                 #'magit-reviewboard--insert-reviews
                                 'magit-insert-staged-changes
                                 'append)
         (add-hook 'magit-status-mode-hook #'magit-reviewboard--add-to-status-buffer-kill-hook 'append))
     ;; Disable mode
-    (when (equal (lookup-key magit-status-mode-map "jR") #'magit-jump-to-reviews)
+    (when (equal (lookup-key magit-status-mode-map "jR") #'magit-jump-to-reviewboard)
       (define-key magit-status-mode-map "jR" nil))
     (remove-hook 'magit-status-sections-hook #'magit-reviewboard--insert-reviews)
     (remove-hook 'magit-status-mode-hook #'magit-reviewboard--add-to-status-buffer-kill-hook)))
+
+(defun magit-reviewboard-update ()
+  "Update the review-request list manually.
+Only necessary when option `magit-reviewboard-update' is nil."
+  (interactive)
+  (unless magit-reviewboard-mode
+    (user-error "Please activate `magit-reviewboard-mode'"))
+  (let ((inhibit-read-only t))
+    (magit-reviewboard--delete-section [* reviewboard])
+    ;; HACK: See other note on `magit-reviewboard-updating'.
+    (setq magit-reviewboard-updating t)
+    (magit-reviewboard--insert-reviews)))
 
 (provide 'magit-reviewboard)
 ;;; magit-reviewboard.el ends here
