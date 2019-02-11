@@ -9,7 +9,7 @@ review-requests for the repository in the Magit status buffer.
 Truncated list as seen in status-buffer
 [[screenshots/status-buffer.png]]
 
-Full list:
+Full list as seen by =magit-reviewboard-list=:
 [[screenshots/review-list.png]]
 
 ** Installation

@@ -41,7 +41,7 @@
               last-updated latest-diff branch description summary
               absolute-url latest-diff-url author)
 
-(defgroup magit-review nil
+(defgroup magit-reviewboard nil
   "Show reviewboard review items in source code comments in repos' files."
   :group 'magit)
 
@@ -80,18 +80,17 @@ A time value as returned by `current-time'.")
 
 (defcustom magit-reviewboard-api-max-results 50
   "Number of review requests to fetch from Reviewboard."
+  :group 'magit-reviewboard
   :type 'integer)
 
 (defcustom magit-reviewboard-max-items-show 10
   "Automatically collapse the section if there are more than this many items."
-  :type 'integer)
-
-(defcustom magit-reviewboard-buffer-item-factor 10
-  "Multiply `magit-reviewboard-api-max-results' and `magit-reviewboard-max-items-show' by this factor in dedicated `magit-review' buffers."
+  :group 'magit-reviewboard
   :type 'integer)
 
 (defcustom magit-reviewboard-sort-order '(magit-reviewboard--sort-by-last-updated)
   "Order in which to sort items."
+  :group 'magit-reviewboard
   :type '(repeat (choice (const :tag "Last updated" magit-reviewboard--sort-by-last-updated)
                          (function :tag "Custom function"))))
 
@@ -103,6 +102,7 @@ in the status buffer with point on the desired section,
 e.g. `recent' for the \"Recent commits\" section.  Note that this
 may not work exactly as desired when the built-in scanner is
 used."
+  :group 'magit-reviewboard
   :type '(choice (const :tag "Top" top)
                  (const :tag "Bottom" bottom)
                  (const :tag "After untracked files" untracked)
@@ -116,12 +116,14 @@ command `magit-reviewboard-update'.  When caching is enabled, scan for
 items whenever the Magit status buffer is refreshed and at least
 N seconds have passed since the last scan; otherwise, use cached
 items."
+  :group 'magit-reviewboard
   :type '(choice (const :tag "Automatically, when the Magit status buffer is refreshed" t)
                  (integer :tag "Automatically, but cache items for N seconds")
                  (const :tag "Manually" nil)))
 
 (defcustom magit-reviewboard-base-uri ""
   "The base uri for the ReviewBoard api server."
+  :group 'magit-reviewboard
   :type 'string)
 
 (defun magit-reviewboard-uri (endpoint)
@@ -155,7 +157,7 @@ Type \\[magit-refresh] to refresh the list.
 Type \\[magit-section-toggle] to expand or hide the section at point.
 Type \\[magit-visit-thing] to visit the item at point.
 Type \\[magit-diff-show-or-scroll-up] to peek at the item at point."
-  :group 'magit-review)
+  :group 'magit-reviewboard)
 
 ;;;###autoload
 (defun magit-reviewboard-list-internal (directory)
@@ -166,7 +168,7 @@ Type \\[magit-diff-show-or-scroll-up] to peek at the item at point."
 
 (defun magit-reviewboard-list-refresh-buffer ()
   "Refresh the current `magit-reviewboard-list-mode' buffer."
-  (let ((magit-reviewboard-api-max-results (* magit-reviewboard-api-max-results magit-reviewboard-buffer-item-factor))
+  (let ((magit-reviewboard-api-max-results 400)
         (magit-reviewboard-max-items-show 400)) ;; We never want the section to be collapsed in this view
     (magit-section-show (magit-insert-section (type magit-root-section)
                           (magit-insert-status-headers)
@@ -292,7 +294,7 @@ This function should be called from inside a ‘magit-status’ buffer."
   (declare (indent defun))
   (when magit-reviewboard-active-scan
     ;; Avoid running multiple scans for a single magit-status buffer.
-    (when (not (request-response-done-p magit-reviewboard-active-scan))
+    (unless (request-response-done-p magit-reviewboard-active-scan)
       (message "Aborting current scan...")
       (request-abort magit-reviewboard-active-scan))
     (setq magit-reviewboard-active-scan nil))
@@ -370,7 +372,7 @@ To be called in status buffers' `kill-buffer-hook'."
   "Insert review-request ITEMS into MAGIT-STATUS-BUFFER."
   (declare (indent defun))
   ;; NOTE: This could be factored out into some kind of `magit-insert-section-async' macro if necessary.
-  (when (not (buffer-live-p magit-status-buffer))
+  (unless (buffer-live-p magit-status-buffer)
     (message "Callback called for deleted buffer"))
   (let* ((items (magit-reviewboard--sort items))
          (num-items (length items))
