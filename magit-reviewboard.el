@@ -224,20 +224,20 @@ See `magit-section-match'.  Also delete it from root section's children."
   "Scan for review-requests with magit-reviewboard-scan-reviews and insert the contents into MAGIT-STATUS-BUFFER.
 MAGIT-STATUS-BUFFER is what it says.  DIRECTORY is the directory in which to run the scan."
   (when (magit-get-remote)
-    (lexical-let* ((upstream-url (magit-get nil (format "remote.%s.url" (substring-no-properties (magit-get-remote)))))
-                   (proc (request
-                          (magit-reviewboard-uri "/repositories/")
-                          :type "GET"
-                          :params '(("max-results" . "200"))
-                          :parser 'json-read
-                          :headers '(("Content-Type" . "application/json"))))
-                   (done (while (not (request-response-done-p proc)) (sleep-for .1)))
-                   (data (request-response-data proc))
-                   (repos (assoc-default 'repositories data))
-                   (repo-id (cl-loop for repo across repos
-                                     when (cl-search (assoc-default 'path repo) upstream-url)
-                                     return (assoc-default 'id repo)))
-                   (magit-status-buffer magit-status-buffer))
+    (let* ((upstream-url (magit-get nil (format "remote.%s.url" (substring-no-properties (magit-get-remote)))))
+           (proc (request
+                  (magit-reviewboard-uri "/repositories/")
+                  :type "GET"
+                  :params '(("max-results" . "200"))
+                  :parser 'json-read
+                  :headers '(("Content-Type" . "application/json"))))
+           (_done (while (not (request-response-done-p proc)) (sleep-for .1)))
+           (data (request-response-data proc))
+           (repos (assoc-default 'repositories data))
+           (repo-id (cl-loop for repo across repos
+                             when (cl-search (assoc-default 'path repo) upstream-url)
+                             return (assoc-default 'id repo)))
+           (magit-status-buffer magit-status-buffer))
       (if repo-id (request
        (magit-reviewboard-uri "/review-requests/")
        :type "GET"
